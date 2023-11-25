@@ -1,15 +1,4 @@
-// g++ main.cpp -I /usr/include/opencv4 -L /usr/lib -lopencv_core -lopencv_imgproc -lopencv_highgui -lopencv_imgcodecs
-#include "opencv2/imgproc.hpp"
-#include "opencv2/highgui.hpp"
-#include <iostream>
-#include <sys/stat.h>
-
-using namespace cv;
-
-#define mat_at(mat, i, j) (((i) < 0 || (i) >= mat.rows || (j) < 0 || (j) >= mat.cols) ? 0 : mat.at<uchar>((i), (j)))
-
-// put here to let the variables be global
-// which makes outputting the inner image easier
+#include "canny.hpp"
 
 /*
  * Discrete angle
@@ -71,7 +60,6 @@ void calGradandAngle(Mat &source, Mat &grad_m, Mat &dict_angle) {
                 max_grad_m = grad_m.at<uchar>(i, j);
             }
             // calculate gradient direction angle
-            // std::cout << "Gx: " << Gx << " Gy: " << Gy << " atan2: " << atan2(Gy, Gx) << std::endl;
             dict_angle.at<float>(i, j) = atan2f32(Gy, Gx);
         }
     }
@@ -102,7 +90,6 @@ void nonMaxSuppression(Mat &grad_m, Mat &dict_angle, Mat &dst) {
             // get the max gradient magnitude of the pixel
             // in the direction of the sector to compare
             uchar grad_mag_cmp = 0;
-            // std::cout << (int)sector << std::endl;
             switch (sector) {
                 /* be careful of the direction of the gradient
                  * ----→ Gx
@@ -139,10 +126,8 @@ void nonMaxSuppression(Mat &grad_m, Mat &dict_angle, Mat &dst) {
 }
 
 /*
- * Hysteresis thresholding's Step 1.
- * Divide into 2 parts:
- * 1. get the strong and weak edges
- * 2. connect the weak edges to the strong edges to get the final edges
+ * Hysteresis thresholding's Step 1
+ * Get the strong and weak edges
  * @param src: input image
  * @param strong_edges: output image (containing strong edges)
  * @param weak_edges: output image (containing weak edges)
@@ -151,17 +136,17 @@ void nonMaxSuppression(Mat &grad_m, Mat &dict_angle, Mat &dst) {
  */
 void hysteresisThresholdingStep1(Mat &src, Mat &strong_edges, Mat &weak_edges, int lowThreshold, int highThreshold) {
     for (int i = 0; i < src.rows; i++) {
-        // std::cout << std::endl << i << " | ";
         for (int j = 0; j < src.cols; j++) {
-            // std::cout << j << " ";
             // if the pixel is larger than highThreshold, it is a strong edge
-            if (src.at<uchar>(i, j) >= highThreshold) {
+            if (mat_at(src, i, j) >= highThreshold) {
                 strong_edges.at<uchar>(i, j) = 255;
+                continue;
             } else {
                 strong_edges.at<uchar>(i, j) = 0;
             }
-            // if the pixel is larger than lowThreshold, it is a weak edge
-            if (src.at<uchar>(i, j) >= lowThreshold) {
+            // if the pixel is larger than lowThreshold,
+            // but smaller than highThreshold, it is a weak edge
+            if (mat_at(src, i, j) >= lowThreshold) {
                 weak_edges.at<uchar>(i, j) = 255;
             } else {
                 weak_edges.at<uchar>(i, j) = 0;
@@ -170,25 +155,97 @@ void hysteresisThresholdingStep1(Mat &src, Mat &strong_edges, Mat &weak_edges, i
     }
 }
 
-void hysteresisThresholdingStep2(Mat &src, Mat &dst, int lowThreshold, int highThreshold) {
+/*
+ * Hysteresis thresholding's Step 2
+ * Connect the weak edges to the strong edges to get the final edges
+ * @param src: input image (containing weak edges)
+ * @param dst: output image (containing strong edges)
+ */
+#ifdef USE_WEAK_EDGE
+void hysteresisThresholdingStep2(Mat &src, Mat &dst) {
     // Step 2: connect the weak edges to the strong edges to get the final edges
-    // std::cout << "connect the weak edges to the strong edges" << std::endl;
-    for (int i = 0; i < src.rows; i++) {
-        for (int j = 0; j < src.cols; j++) {
+    for (int i = 0; i < dst.rows; i++) {
+        for (int j = 0; j < dst.cols; j++) {
             // if the pixel is a weak edge
-            if (src.at<uchar>(i, j) == 255) {
+            if (mat_at(src, i, j) == 255) {
                 // check if it has a strong edge in its 8-neighborhood
                 bool has_strong_edge = false;
                 for (int k = -1; k <= 1; k++) {
                     for (int l = -1; l <= 1; l++) {
                         // if the pixel is a strong edge
-                        if (dst.at<uchar>(i+k, j+l) == 255) {
+                        if (mat_at(dst, i+k, j+l) == 255) {
                             has_strong_edge = true;
                             break;
                         }
                     }
-                    if (has_strong_edge) {
-                        break;
+                }
+                // if it has a strong edge in its 8-neighborhood, set it to 255
+                if (has_strong_edge) {
+                    dst.at<uchar>(i, j) = 255;
+                } else {
+                    dst.at<uchar>(i, j) = 0;
+                }
+            }
+        }
+    }
+}
+#else
+void hysteresisThresholdingStep2(Mat &src, Mat &dst) {
+    // Step 2: connect the weak edges to the strong edges to get the final edges
+    for (int i = 0; i < dst.rows; i++) {
+        for (int j = 0; j < dst.cols; j++) {
+            // if the pixel is a strong edge
+            if (mat_at(dst, i, j) == 255) {
+                // check if it has a strong edge in its 8-neighborhood
+                bool has_strong_edge = false;
+                for (int k = -1; k <= 1; k++) {
+                    for (int l = -1; l <= 1; l++) {
+                        if (k == 0 && l == 0) {
+                            continue;
+                        }
+                        // if the pixel is a strong edge
+                        if (mat_at(dst, i+k, j+l) == 255) {
+                            has_strong_edge = true;
+                            break;
+                        }
+                    }
+                }
+                // if it has no strong edge in its 8-neighborhood,
+                // copy the weak edge in its 8-neighborhood to the strong edge
+                if (!has_strong_edge) {
+                    for (int k = -1; k <= 1; k++) {
+                        for (int l = -1; l <= 1; l++) {
+                            // if the pixel is a weak edge
+                            if (mat_at(src, i+k, j+l) == 255) {
+                                if (i+k < 0 || i+k >= src.rows || j+l < 0 || j+l >= src.cols) {
+                                    continue;
+                                }
+                                dst.at<uchar>(i+k, j+l) = 255;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+#endif
+
+void hysteresisThresholdingStep2_1(Mat &src, Mat &dst) {
+    // Step 2: connect the weak edges to the strong edges to get the final edges
+    for (int i = dst.rows - 1; i >= 0; i--) {
+        for (int j = dst.cols - 1; j >= 0; j--) {
+            // if the pixel is a weak edge
+            if (mat_at(src, i, j) == 255) {
+                // check if it has a strong edge in its 8-neighborhood
+                bool has_strong_edge = false;
+                for (int k = -1; k <= 1; k++) {
+                    for (int l = -1; l <= 1; l++) {
+                        // if the pixel is a strong edge
+                        if (mat_at(dst, i+k, j+l) == 255) {
+                            has_strong_edge = true;
+                            break;
+                        }
                     }
                 }
                 // if it has a strong edge in its 8-neighborhood, set it to 255
@@ -220,8 +277,8 @@ void hysteresisThresholding(Mat &src, OutputArray dst, int lowThreshold, int hig
     hysteresisThresholdingStep1(src, strong_edges, weak_edges, lowThreshold, highThreshold);
 
     // Step 2: connect the weak edges to the strong edges to get the final edges
-    // std::cout << "connect the weak edges to the strong edges" << std::endl;
-    hysteresisThresholdingStep2(weak_edges, strong_edges, lowThreshold, highThreshold);
+    hysteresisThresholdingStep2(weak_edges, strong_edges);
+    hysteresisThresholdingStep2_1(weak_edges, strong_edges);
 
     // output the final edges
     dst.create(src.size(), CV_8U);
@@ -230,101 +287,51 @@ void hysteresisThresholding(Mat &src, OutputArray dst, int lowThreshold, int hig
 
 /*
  * Implemented myCanny function
- * (args are the same as Canny function)
+ * (args are similar to Canny function)
  * @param image: input image (gray image)
  * @param edges: output image (containing edges)
  * @param highThreshold: low threshold for the hysteresis procedure
  * @param highThreshold: high threshold for the hysteresis procedure
- * @param apertureSize: aperture size for the Sobel operator
+ * @param apertureSize: aperture size for the Sobel operator, NOT USED
+ * @param outputInner: a flag, indicating whether output the inner image
  * @param L2gradient: a flag, indicating whether a more accurate L2 norm
  */
 void myCanny(InputArray image, OutputArray edges,
              double lowThreshold, double highThreshold,
-             int apertureSize = 3, bool L2gradient = false) { 
+             int apertureSize, bool outputInner,
+             bool L2gradient) {
     // Step 1: blur the gray image
-    // std::cout << "blur" << std::endl;
     Mat blurred;
-    blur(image, blurred, Size(3,3));
+    GaussianBlur(image, blurred, Size(3,3), 0.0);
 
     // Step 2: calculate gradient magnitude and direction angle
-    // std::cout << "grad and angle" << std::endl;
     Mat grad_m, dict_angle;
-    // use float to store the gradient magnitude and direction angle
+    // use uchar to store gradient magnitude
+    // use float to store direction angle
     grad_m.create(blurred.size(), CV_8U);
     dict_angle.create(blurred.size(), CV_32F);
     calGradandAngle(blurred, grad_m, dict_angle);
+    // if outputInner is true, output the inner image
+    if (outputInner) {
+        // output the inner image of grad magtinude
+        imwrite("inner/grad.png", grad_m);
+    }
 
     // Step 3: non-maximum suppression
-    // std::cout << "non-maximum suppression" << std::endl;
     Mat non_max_sup;
     non_max_sup.create(grad_m.size(), CV_8U);
     nonMaxSuppression(grad_m, dict_angle, non_max_sup);
+    // if outputInner is true, output the inner image
+    if (outputInner) {
+        // output the inner image of non-maximum suppression
+        imwrite("inner/nms.png", non_max_sup);
+    }
 
     // Step 4: hysteresis thresholding
-    // std::cout << "hysteresis thresholding" << std::endl;
     hysteresisThresholding(non_max_sup, edges, lowThreshold, highThreshold);
-}
-
-int main(int argc, char** argv) {
-    const String parser_string = "{help h usage    |           | print this message  }"
-                                 "{inner           |           | output inner image  }"
-                                 "{@input          | lena.jpg  | input image         }"
-                                 "{@output         | canny.png | output image        }"
-                                 "{t @lowThreshold | 20        | low threshold value }"
-                                 "{r @ratio        | 3         | ratio               }"
-                                 "{k @kernel_size  | 3         | kernel size         }"
-                                 ;
-    Mat src, src_gray, dst, detected_edges;
-
-    // parse command line arguments
-    CommandLineParser parser(argc, argv, parser_string);
-    if (parser.has("help")) {
-        parser.printMessage();
-        return 0;
+    // if outputInner is true, output the inner image
+    if (outputInner) {
+        // output the inner image of hysteresis thresholding
+        imwrite("inner/hysteresis.png", edges);
     }
-
-    // try to open input image
-    try {
-        src = imread(samples::findFile(parser.get<String>("@input")), IMREAD_COLOR);
-    } catch (const cv::Exception& e) {
-        std::cerr << "\n" << "Error opening file: " << e.what() << std::endl;
-        parser.printMessage();
-        return -1;
-    }
-
-    // initialize variables
-    bool output_inner = parser.has("inner");
-    String output_filename = parser.get<String>("@output");
-    float lowThreshold = parser.get<float>("@lowThreshold");
-    float ratio = parser.get<float>("@ratio");
-    float kernel_size = parser.get<float>("@kernel_size");
-
-    // create dst image size and get the gray image of src
-    dst.create(src.size(), src.type());
-    cvtColor(src, src_gray, COLOR_BGR2GRAY);
-
-    // detect edges using canny
-    myCanny(src_gray, detected_edges, lowThreshold, lowThreshold*ratio, kernel_size);
-
-    // use detected_edges as a mask to copy the original image
-    dst = Scalar::all(0);
-    src.copyTo(dst, detected_edges);
-
-    // output the processed image
-    imwrite(output_filename, dst);
-    
-    // if output_inner is true, output the inner image
-    if (output_inner) {
-        // mkdir inner
-        String inner_dir = "inner";
-        // check if inner directory exists
-        struct stat info;
-        if (stat(inner_dir.c_str(), &info) != 0) {
-            // create inner directory
-            mkdir(inner_dir.c_str(), 0755);
-        }
-        // output inner image
-        /* TODO */
-    }
-    return 0;
 }
