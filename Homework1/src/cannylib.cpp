@@ -231,34 +231,6 @@ void hysteresisThresholdingStep2(Mat &src, Mat &dst) {
 }
 #endif
 
-void hysteresisThresholdingStep2_1(Mat &src, Mat &dst) {
-    // Step 2: connect the weak edges to the strong edges to get the final edges
-    for (int i = dst.rows - 1; i >= 0; i--) {
-        for (int j = dst.cols - 1; j >= 0; j--) {
-            // if the pixel is a weak edge
-            if (mat_at(src, i, j) == 255) {
-                // check if it has a strong edge in its 8-neighborhood
-                bool has_strong_edge = false;
-                for (int k = -1; k <= 1; k++) {
-                    for (int l = -1; l <= 1; l++) {
-                        // if the pixel is a strong edge
-                        if (mat_at(dst, i+k, j+l) == 255) {
-                            has_strong_edge = true;
-                            break;
-                        }
-                    }
-                }
-                // if it has a strong edge in its 8-neighborhood, set it to 255
-                if (has_strong_edge) {
-                    dst.at<uchar>(i, j) = 255;
-                } else {
-                    dst.at<uchar>(i, j) = 0;
-                }
-            }
-        }
-    }
-}
-
 /*
  * Hysteresis thresholding's Implementation.
  * Divide into 2 parts:
@@ -278,7 +250,6 @@ void hysteresisThresholding(Mat &src, OutputArray dst, int lowThreshold, int hig
 
     // Step 2: connect the weak edges to the strong edges to get the final edges
     hysteresisThresholdingStep2(weak_edges, strong_edges);
-    hysteresisThresholdingStep2_1(weak_edges, strong_edges);
 
     // output the final edges
     dst.create(src.size(), CV_8U);
