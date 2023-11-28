@@ -21,6 +21,22 @@ void checkImg(uchar* data, String filename) {
     }
 }
 
+int floorMin(float a, float b, float c, float d) {
+    int floor_a = (int)floor(a);
+    int floor_b = (int)floor(b);
+    int floor_c = (int)floor(c);
+    int floor_d = (int)floor(d);
+    return std::min(std::min(std::min(floor_a, floor_b), floor_c), floor_d);
+}
+
+int ceilMax(float a, float b, float c, float d) {
+    int ceil_a = (int)ceil(a);
+    int ceil_b = (int)ceil(b);
+    int ceil_c = (int)ceil(c);
+    int ceil_d = (int)ceil(d);
+    return std::max(std::max(std::max(ceil_a, ceil_b), ceil_c), ceil_d);
+}
+
 int main(int argc, char** argv) {
 
     // initialize variables
@@ -168,10 +184,10 @@ int main(int argc, char** argv) {
             // }
             // get the final padding size
             std::vector<int> projected_bounds(4);
-            projected_bounds[0] = std::min((int)floor(projected_corners[0].y), (int)floor(projected_corners[1].y)); // top
-            projected_bounds[1] = std::max((int)ceil(projected_corners[2].y), (int)ceil(projected_corners[3].y));   // bottom
-            projected_bounds[2] = std::min((int)floor(projected_corners[0].x), (int)floor(projected_corners[3].x)); // left
-            projected_bounds[3] = std::max((int)ceil(projected_corners[1].x), (int)ceil(projected_corners[2].x));   // right
+            projected_bounds[0] = floorMin(projected_corners[0].y, projected_corners[1].y, projected_corners[2].y, projected_corners[3].y); // top
+            projected_bounds[1] = ceilMax(projected_corners[0].y, projected_corners[1].y, projected_corners[2].y, projected_corners[3].y);  // bottom
+            projected_bounds[2] = floorMin(projected_corners[0].x, projected_corners[1].x, projected_corners[2].x, projected_corners[3].x); // left
+            projected_bounds[3] = ceilMax(projected_corners[0].x, projected_corners[1].x, projected_corners[2].x, projected_corners[3].x);  // right
             std::vector<int> padding_size(4);
             padding_size[0] = std::max(0, -projected_bounds[0]);                                                    // top
             padding_size[1] = std::max(0, projected_bounds[1] - srcB.rows);                                     // bottom
