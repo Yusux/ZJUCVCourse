@@ -2,9 +2,6 @@
 #include "opencv2/highgui.hpp"
 #include "opencv2/xfeatures2d.hpp"
 #include "opencv2/calib3d.hpp"
-#include <opencv2/stitching/detail/camera.hpp>
-#include <opencv2/stitching/detail/matchers.hpp>
-#include <opencv2/stitching/detail/motion_estimators.hpp>
 #include <iostream>
 #include <sys/stat.h>
 
@@ -38,116 +35,6 @@ int ceilMax(float a, float b, float c, float d) {
     int ceil_c = (int)ceil(c);
     int ceil_d = (int)ceil(d);
     return std::max(std::max(std::max(ceil_a, ceil_b), ceil_c), ceil_d);
-}
-
-void getMask(Mat &img, Mat &mask) {
-    mask = Mat::zeros(img.rows, img.cols, CV_8UC1);
-    for (int i = 0; i < img.rows; i++) {
-        for (int j = 0; j < img.cols; j++) {
-            if (img.at<Vec3b>(i, j) != Vec3b(0, 0, 0)) {
-                mask.at<uchar>(i, j) = 255;
-            }
-        }
-    }
-}
-
-// calculate the linear blend of the base and warped image
-// based on the distance of the boundary
-void linearBlend(Mat &base, Mat &warped, Mat &dst) {
-    Mat base_mask, warped_mask, overlap_mask;
-    // create mask for the base and warped image
-    getMask(base, base_mask);
-    getMask(warped, warped_mask);
-    // erode the warped_mask for 2 pixels and dilate for 1 pixel
-    dilate(warped_mask, warped_mask, Mat(), Point(-1, -1), 1);
-    erode(warped_mask, warped_mask, Mat(), Point(-1, -1), 2);
-
-    // find the leftest point of the warped mask
-    int warped_mask_leftest = warped_mask.cols;
-    for (int i = 0; i < warped_mask.rows; i++) {
-        for (int j = 0; j < warped_mask.cols; j++) {
-            if (warped_mask.at<uchar>(i, j) == 255 && j < warped_mask_leftest) {
-                warped_mask_leftest = j;
-                break;
-            }
-        }
-    }
-    // find the rightest point of the warped mask
-    int warped_mask_rightest = 0;
-    for (int i = 0; i < warped_mask.rows; i++) {
-        for (int j = warped_mask.cols-1; j >= 0; j--) {
-            if (warped_mask.at<uchar>(i, j) == 255 && j > warped_mask_rightest) {
-                warped_mask_rightest = j;
-                break;
-            }
-        }
-    }
-    // get the center of the warped mask in x axis
-    int warped_mask_center = (warped_mask_leftest + warped_mask_rightest) / 2;
-
-    // prepare the dst image
-    dst = Mat::zeros(base.rows, base.cols, CV_8UC3);
-    base.copyTo(dst, base_mask);
-    warped.copyTo(dst, warped_mask);
-
-    // erode the base_mask for 2 pixels and dilate for 1 pixel
-    dilate(base_mask, base_mask, Mat(), Point(-1, -1), 1);
-    erode(base_mask, base_mask, Mat(), Point(-1, -1), 2);
-    // get the overlap mask
-    bitwise_and(base_mask, warped_mask, overlap_mask);
-
-    // use the calculated alpha in [0, 1] to represent the radio
-    // of the distance of the boundary to the bottom_left of the base mask
-    // to paint the dst image
-    for (int i = 0; i < overlap_mask.rows; i++) {
-        // find the start and end of the overlap mask
-        int start = -1;
-        int end = -1;
-        for (int j = 0; j < overlap_mask.cols; j++) {
-            if (overlap_mask.at<uchar>(i, j) == 255) {
-                if (start == -1) {
-                    start = j;
-                }
-                end = j;
-            }
-        }
-
-        // if there is no overlap in this row
-        if (start == -1) {
-            continue;
-        }
-
-        // use the distance in x axis to the bottom_left of
-        // the warped mask to determine the alpha
-        // to determine the initial alpha and the distance_delta
-        float distance_delta;
-        float alpha;
-        if (abs(start - warped_mask_center) < abs(end - warped_mask_center)) {
-            // the start is closer to the bottom_left
-            // the alpha should be larger
-            alpha = 1.0f;
-            // and the distance_delta should be negative
-            distance_delta = -1.0f / (end - start);
-        } else if (abs(start - warped_mask_center) == abs(end - warped_mask_center)) {
-            // the start and end are at the same distance to the bottom_left
-            // the alpha should be 0.5
-            alpha = 0.5f;
-        } else {
-            // the end is closer to the bottom_left
-            // the alpha should be smaller
-            alpha = 0.0f;
-            // and the distance_delta should be positive
-            distance_delta = 1.0f / (end - start);
-        }
-
-        // paint the dst image
-        for (int j = start; j <= end; j++) {
-            // paint the dst image
-            dst.at<Vec3b>(i, j) = alpha * warped.at<Vec3b>(i, j) + (1 - alpha) * base.at<Vec3b>(i, j);
-            // iter the alpha
-            alpha += distance_delta;
-        }
-    }
 }
 
 int main(int argc, char** argv) {
@@ -212,7 +99,7 @@ int main(int argc, char** argv) {
         // and convert the images to grayscale
         std::vector<Mat> images;
         std::vector<Mat> images_gray;
-        for (int i = 1; i < filenames.size(); i++) {
+        for (int i = 0; i < filenames.size()-1; i++) {
             Mat img = imread(filenames[i]);
             checkImg(img.data, filenames[i]);
             images.push_back(img);
@@ -220,8 +107,8 @@ int main(int argc, char** argv) {
             cvtColor(img, img_gray, COLOR_BGR2GRAY);
             images_gray.push_back(img_gray);
         }
-        dst = imread(filenames[0]);
-        checkImg(dst.data, filenames[0]);
+        dst = imread(filenames[filenames.size()-1]);
+        checkImg(dst.data, filenames[filenames.size()-1]);
 
         // Step 1: Feature Detection
         // use SIFT to detect keypoints and extract descriptors
@@ -235,12 +122,6 @@ int main(int argc, char** argv) {
             images_keypoints.push_back(keypoints);
             images_descriptors.push_back(descriptors);
         }
-
-        // Perform bundle adjustment to solve for the rotation θ1, θ2, θ3 and focal length f of all cameras
-        std::vector<detail::CameraParams> cameras;
-        // estimate HomographyBasedEstimator
-        Ptr<detail::Estimator> estimator = makePtr<detail::HomographyBasedEstimator>();
-        std::vector<detail::ImageFeatures> features(filenames.size());
 
         for (int i = 1; i < filenames.size(); i++) {
             // Step 2: Feature Matching
@@ -359,28 +240,30 @@ int main(int argc, char** argv) {
                 imwrite("inner/" + std::to_string(i-1) + "_warp_pre.png", warpedA);
             }
             // create mask for the warped image
-            Mat maskA;
-            getMask(warpedA, maskA);
+            Mat maskA = Mat::zeros(warpedA.rows, warpedA.cols, CV_8UC1);
+            for (int j = 0; j < warpedA.rows; j++) {
+                for (int k = 0; k < warpedA.cols; k++) {
+                    if (warpedA.at<Vec3b>(j, k) != Vec3b(0, 0, 0)) {
+                        maskA.at<uchar>(j, k) = 255;
+                    }
+                }
+            }
             // erode the mask for 1 pixel
             erode(maskA, maskA, Mat(), Point(-1, -1), 1);
             
             // Step 4.3: Copy the images to the canvas
             // create the canvas
-            Mat base = Mat::zeros(canvas_height, canvas_width, CV_8UC3);
+            dst = Mat::zeros(canvas_height, canvas_width, CV_8UC3);
             // copy the base image to the dst image with the mask
-            srcB.copyTo(Mat(base, Rect(padding_size[2], padding_size[0], srcB.cols, srcB.rows)));
-            // // copy the warped image to the dst image with the mask
-            // warpedA.copyTo(Mat(dst, Rect(0, 0, warpedA.cols, warpedA.rows)), maskA);
-
-            // Step 5: Image Blending
-            // use linear blend to blend the base and warped image
-            linearBlend(base, warpedA, dst);
+            srcB.copyTo(Mat(dst, Rect(padding_size[2], padding_size[0], srcB.cols, srcB.rows)));
+            // copy the warped image to the dst image with the mask
+            warpedA.copyTo(Mat(dst, Rect(0, 0, warpedA.cols, warpedA.rows)), maskA);
             // output the inner image
             if (output_inner) {
                 imwrite("inner/" + std::to_string(i-1) + "_warp.png", dst);
             }
 
-            // Loop Final: pop the idxA image
+            // pop the idxA image
             images.erase(images.begin() + idxA);
             images_gray.erase(images_gray.begin() + idxA);
             images_keypoints.erase(images_keypoints.begin() + idxA);
