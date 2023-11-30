@@ -49,9 +49,9 @@ public:
      * Constructor of the multi-band blender
      * @param images: the images to blend
      * @param masks: the masks of the images
+     * @param output_inner: whether to output the inner image
      * @param num_bands: the number of bands,
      * -1 means automatically calculate the number of bands
-     * @param output_inner: whether to output the inner image
      */
     MyMultiBandBlender(std::vector<cv::Mat> images,
                        std::vector<cv::Mat> masks,
