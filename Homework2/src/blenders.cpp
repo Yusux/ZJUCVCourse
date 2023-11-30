@@ -73,9 +73,8 @@ void linearBlend(Mat &base, Mat &warped, Mat &dst) {
             distance_delta = 1.0f / (end - start);
         }
 
-        // paint the dst_hori image
+        // paint the dst image in this row
         for (int i = start; i <= end; i++) {
-            // paint the dst_hori image
             dst.at<Vec3b>(y, i) = alpha * warped.at<Vec3b>(y, i) + (1 - alpha) * base.at<Vec3b>(y, i);
             // iter the alpha
             alpha += distance_delta;
@@ -210,13 +209,13 @@ MyMultiBandBlender::MyMultiBandBlender(std::vector<Mat> images,
     CV_Assert(images.size() == 2 && masks.size() == 2);
 
     // get the intersection of the two images
-    Mat mask0, mask1;
+    Mat mask0, mask1, overlap_mask;
     getMask(images[0], mask0);
     getMask(images[1], mask1, 1, 2);
     // get the intersection of the two masks
-    bitwise_and(mask0, mask1, mask_);
+    bitwise_and(mask0, mask1, overlap_mask);
     Rect rect;
-    getMinEnclosingRect(mask_, rect);
+    getMinEnclosingRect(overlap_mask, rect);
 
     // copy the masks
     masks_.resize(masks.size());
@@ -229,11 +228,6 @@ MyMultiBandBlender::MyMultiBandBlender(std::vector<Mat> images,
     for (int i = 0; i < images.size(); i++) {
         images[i].convertTo(images_[i], CV_32FC3);
     }
-
-    // create the dst image
-    dst_ = Mat::zeros(images_[0].rows, images_[0].cols, CV_32FC3);
-    images_[0].copyTo(dst_, mask0);
-    images_[1].copyTo(dst_, mask1);
 
     // whether to output inner image
     output_inner_ = output_inner;
@@ -359,15 +353,11 @@ void MyMultiBandBlender::blend(Mat &dst) {
     blendPyramids(pyr_laplace_[0], pyr_laplace_[1], pyr_gaussian_[0], pyr_gaussian_[1], pyr_laplace_dst);
     
     // reconstruct the image
-    Mat reconstructed;
-    reconstruct(pyr_laplace_dst, reconstructed);
-    
-    // copy the reconstructed image to the dst image
-    reconstructed.copyTo(dst_, mask_);
-    
+    reconstruct(pyr_laplace_dst, dst_);
+
     // output reconstructed
     if (output_inner_) {
-        imwrite("inner/blenders/reconstructed.png", reconstructed);
+        imwrite("inner/blenders/reconstructed.png", dst_);
     }
 
     // convert the dst image to CV_8UC3

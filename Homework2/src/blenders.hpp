@@ -70,7 +70,6 @@ public:
     void blend(cv::Mat &dst);
 
 private:
-    cv::Mat mask_;
     cv::Mat dst_;
     std::vector<cv::Mat> images_;
     std::vector<cv::Mat> masks_;
