@@ -7,7 +7,7 @@ using namespace cv;
 
 const String parser_string = "{help h usage         |              | print this message      }"
                              "{inner                |              | output inner image      }"
-                             "{blend_type bt        | 1            | blend type, from 0 to 4, each number represents a blend type:\n\t\t0 for no blend, 1 for linear blend, 2 for alpha blend,\n\t\t3 for my multiband blend, 4 for opencv multiband blend}"
+                             "{blend_type bt        | 3            | blend type, from 0 to 4, each number represents a blend type:\n\t\t0 for no blend, 1 for linear blend, 2 for alpha blend,\n\t\t3 for my multiband blend, 4 for opencv multiband blend}"
                              "{seam_finder_type sft | 2            | seam finder type, from 0 to 5, each number represents a seam finder type:\n\t\t0 for no seam finder, 1 for voronoi seam finder, 2 for dp color seam finder,\n\t\t3 for dp color grad seam finder, 4 for gc color seam finder,\n\t\t5 for gc color grad seam finder}"
                              "{@input               | pictures     | input images directory  }"
                              "{@output              | stitched.png | output image            }"
