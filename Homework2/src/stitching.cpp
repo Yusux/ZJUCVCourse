@@ -5,7 +5,7 @@
 
 using namespace cv;
 
-void MyStitcher::stitch() {
+void MyStitcher::stitch(Mat &dst) {
     std::cout << "Stitching based on " << filenames_[0] << std::endl;
     for (int i = 1; i < filenames_.size(); i++) {
         std::cout << "Stitching " << filenames_[i] << " to the base image" << std::endl;
@@ -19,14 +19,16 @@ void MyStitcher::stitch() {
 
         // output the inner image
         if (output_inner_) {
-            Mat inner_A, inner_B;
-            drawKeypoints(srcA, keypointsA, inner_A);
-            drawKeypoints(srcB, keypointsB, inner_B);
-            imwrite("inner/" + std::to_string(i-1) + "_keypoints_A.png", inner_A);
-            imwrite("inner/" + std::to_string(i-1) + "_keypoints_B.png", inner_B);
-            Mat inner;
-            drawMatches(srcA, keypointsA, srcB, keypointsB, best_matches, inner);
-            imwrite("inner/" + std::to_string(i-1) + "_matches.png", inner);
+            Mat keypointsA_img, keypointsB_img;
+            drawKeypoints(srcA, keypointsA, keypointsA_img);
+            drawKeypoints(srcB, keypointsB, keypointsB_img);
+            imwrite("inner/" + std::to_string(i-1) + "_keypoints_A.png", keypointsA_img);
+            imwrite("inner/" + std::to_string(i-1) + "_keypoints_B.png", keypointsB_img);
+            Mat matches_img;
+            drawMatches(srcA, keypointsA, srcB, keypointsB, best_matches, matches_img,
+                        Scalar::all(-1), Scalar::all(-1), std::vector<char>(),
+                        DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
+            imwrite("inner/" + std::to_string(i-1) + "_matches.png", matches_img);
         }
 
         // Step 3: Homography Estimation
@@ -47,20 +49,24 @@ void MyStitcher::stitch() {
         }
 
         // Step 5: Image Blending
-        imageBlending(base, warpedA);
+        imageBlending(base, warpedA, i-1);
 
         // output the inner image
         if (output_inner_) {
             imwrite("inner/" + std::to_string(i-1) + "_stitiched.png", dst_);
         }
     }
+
+    dst = dst_;
 }
 
 MyStitcher::MyStitcher(std::vector<cv::String> filenames,
                        int blend_type,
+                       int seam_finder_type,
                        bool output_inner) {
     CV_Assert(filenames.size() >= 2);
     CV_Assert(blend_type >= 0 && blend_type <= 4);
+    CV_Assert(seam_finder_type >= 0 && seam_finder_type <= 5);
 
     output_inner_ = output_inner;
     blend_type_ = blend_type;
@@ -68,6 +74,26 @@ MyStitcher::MyStitcher(std::vector<cv::String> filenames,
 
     // initialize sift
     sift_ = SIFT::create();
+
+    // initalize seam finder
+    if (seam_finder_type == 0) {
+        seam_finder_ = makePtr<detail::NoSeamFinder>();
+    } else if (seam_finder_type == 1) {
+        seam_finder_ = makePtr<detail::VoronoiSeamFinder>();
+    } else if (seam_finder_type == 2) {
+        std::cout << "Using dp color seam finder" << std::endl;
+        seam_finder_ = makePtr<detail::DpSeamFinder>(detail::DpSeamFinder::COLOR);
+    } else if (seam_finder_type == 3) {
+        seam_finder_ = makePtr<detail::DpSeamFinder>(detail::DpSeamFinder::COLOR_GRAD);
+    } else if (seam_finder_type == 4) {
+        seam_finder_ = makePtr<detail::GraphCutSeamFinder>(detail::GraphCutSeamFinderBase::COST_COLOR);
+    } else if (seam_finder_type == 5) {
+        seam_finder_ = makePtr<detail::GraphCutSeamFinder>(detail::GraphCutSeamFinderBase::COST_COLOR_GRAD);
+    } else {
+        Exception e;
+        e.msg = "Invalid seam finder type.";
+        throw e;
+    }
 
     try {
         // prepare the images
@@ -80,10 +106,6 @@ MyStitcher::MyStitcher(std::vector<cv::String> filenames,
 }
 
 MyStitcher::~MyStitcher() {
-}
-
-Mat MyStitcher::getStitchedImg() {
-    return dst_;
 }
 
 void MyStitcher::prepareImages() {
@@ -192,7 +214,7 @@ void MyStitcher::imageWarping(Mat &srcA, Mat &srcB, Mat &H,
                               Mat &base, Mat &warped) {
     // Step 4: Image Warping
     // Step 4.1: Calculate the size of the canvas
-    // refer to https://stackoverflow.com/questions/31978721/opencv-image-stitching-leaves-a-blank-region-after-the-right-boundary
+    // refer to https://stackoverflow.com/q/31978721
     std::vector<Point2f> srcA_corners(4);
     srcA_corners[0] = Point2f(0, 0);
     srcA_corners[1] = Point2f(srcA.cols, 0);
@@ -221,7 +243,7 @@ void MyStitcher::imageWarping(Mat &srcA, Mat &srcB, Mat &H,
 
     // Step 4.2: Warp the images
     // apply Ht as the transformation for moving the image
-    // refer to https://stackoverflow.com/questions/13063201/how-to-show-the-whole-image-when-using-opencv-warpperspective
+    // refer to https://stackoverflow.com/q/13063201
     /*
      * [1 0 tx]
      * [0 1 ty]
@@ -243,7 +265,7 @@ void MyStitcher::imageWarping(Mat &srcA, Mat &srcB, Mat &H,
     srcB.copyTo(Mat(base, Rect(padding_size[2], padding_size[0], srcB.cols, srcB.rows)));
 }
 
-void MyStitcher::imageBlending(Mat &base, Mat &warped) {
+void MyStitcher::imageBlending(Mat &base, Mat &warped, int idx) {
     CV_Assert(base.size() == warped.size() && base.type() == warped.type());
     int canvas_width = base.cols;
     int canvas_height = base.rows;
@@ -261,34 +283,93 @@ void MyStitcher::imageBlending(Mat &base, Mat &warped) {
     } else if (blend_type_ == LINEAR_BLEND) {
         // 1. use linear blend to blend the base and warped image
         linearBlend(base, warped, dst_);
-    } else if (blend_type_ == MY_MULTIBAND_BLEND) {
-        // 2. use self implemented multi-band blending to blend the base and warped image
-        std::vector<Mat> images;
-        images.push_back(base);
-        images.push_back(warped);
-        MyMultiBandBlender blender(images);
-        blender.blend(dst_);
-    } else if (blend_type_ == OPENCV_MULTIBAND_BLEND) {
-        // 3. use opencv multi-band blending to blend the base and warped image
-        Mat base_mask, warped_mask;
-        getMask(base, base_mask);
-        getMask(warped, warped_mask, 1, 2);
-        Rect base_rect, warped_rect;
-        getMinEnclosingRect(base_mask, base_rect);
-        getMinEnclosingRect(warped_mask, warped_rect);
-        // create the blender
-        detail::MultiBandBlender blender(false);
-        blender.prepare(Rect(0, 0, canvas_width, canvas_height));
-        blender.feed(base, base_mask, Point(0, 0));
-        blender.feed(warped, warped_mask, Point(0, 0));
-        blender.blend(dst_, Mat());
-        dst_.convertTo(dst_, CV_8UC3);
-    } else{
+    } else if (blend_type_ == ALPHA_BLEND) {
         // 4. use alpha blending to blend the base and warped image
         // refer to https://stackoverflow.com/a/22324790
         Mat maskA, maskB;
         getMask(warped, maskA, 1, 2);
         getMask(base, maskB);
         dst_ = computeAlphaBlending(warped, maskA, base, maskB);
+    } else if (blend_type_ == MY_MULTIBAND_BLEND || blend_type_ == OPENCV_MULTIBAND_BLEND) {
+        // get the masks and the roi
+        Mat base_mask, warped_mask;
+        getMask(base, base_mask);
+        getMask(warped, warped_mask, 1, 2);
+        Mat overlap_mask = base_mask & warped_mask;
+        Rect roi = boundingRect(overlap_mask);
+
+        // get the images, corners and masks
+        std::vector<Mat> images;
+        images.push_back(base);
+        images.push_back(warped);
+        std::vector<Point> corners;
+        corners.push_back(roi.tl());
+        corners.push_back(roi.tl());
+        std::vector<Mat> masks;
+        masks.push_back(base_mask);
+        masks.push_back(warped_mask);
+
+        // find the seam
+        seamFind(images, corners, masks);
+
+        // output the inner image
+        if (output_inner_) {
+            for (int i = 0; i < images.size(); i++) {
+                // imwrite("inner/" + std::to_string(i) + "_mask.png", masks[i]);
+                imwrite("inner/" + std::to_string(idx) + "_mask_" + std::to_string(i) + ".png", masks[i]);
+            }
+        }
+
+        if (blend_type_ == MY_MULTIBAND_BLEND) {
+            // 2. use self implemented multi-band blending to blend the base and warped image
+            MyMultiBandBlender blender(images, masks, output_inner_);
+            blender.blend(dst_);
+        } else  {   // OPENCV_MULTIBAND_BLEND
+            // 3. use opencv multi-band blending to blend the base and warped image
+            // create the blender
+            detail::MultiBandBlender blender(false);
+            blender.prepare(Rect(0, 0, canvas_width, canvas_height));
+            blender.feed(images[0], masks[0], Point(0, 0));
+            blender.feed(images[1], masks[1], Point(0, 0));
+            blender.blend(dst_, Mat());
+            dst_.convertTo(dst_, CV_8UC3);
+        }
+    } else {
+        Exception e;
+        e.msg = "Invalid blend type.";
+        throw e;
+    }
+}
+
+
+void MyStitcher::seamFind(std::vector<cv::Mat> &images,
+                          std::vector<cv::Point> &corners,
+                          std::vector<cv::Mat> &masks) {
+    // get the intersection of the two masks
+    Mat overlap_mask = masks[0] & masks[1];
+    Rect rect = boundingRect(overlap_mask);
+
+    // use the graph cut to find the seam
+    std::vector<UMat> seam_images;
+    std::vector<Point> seam_corners;
+    std::vector<UMat> seam_masks;
+    seam_images.resize(images.size());
+    seam_corners.resize(images.size());
+    seam_masks.resize(images.size());
+    for (int i = 0; i < images.size(); i++) {
+        images[i].convertTo(seam_images[i], CV_32F);
+    }
+    for (int i = 0; i < images.size(); i++) {
+        seam_corners[i] = corners[i];
+    }
+    for (int i = 0; i < images.size(); i++) {
+        seam_masks[i] = masks[i].getUMat(ACCESS_READ);
+    }
+    seam_finder_->find(seam_images, seam_corners, seam_masks);
+
+    // get the seam masks
+    for (int i = 0; i < images_.size(); i++) {
+        dilate(seam_masks[i], seam_masks[i], Mat());
+        masks[i] = seam_masks[i].getMat(ACCESS_READ) & masks[i];
     }
 }

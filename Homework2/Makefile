@@ -1,7 +1,7 @@
 CC=g++
 INCLUDE = $(shell pkg-config --cflags opencv4)  # 获得 opencv 相关头文件路径
 LIBS = $(shell pkg-config --libs opencv4)		# 获得 opencv 扩展库
-CFLAGS=
+CFLAGS=-O3 -std=c++11
 DEFS=
 SRC=$(sort $(wildcard src/*.cpp))
 OBJ=$(SRC:.cpp=.o)
@@ -19,4 +19,6 @@ clean:
 	rm -rf $(OBJ) $(TARGET)
 
 cleanimg:
-	rm -rf inner/*.png inner/ *.png *.jpg
+	find . -type f -iname "*.jpg" -delete
+	find . -type f -iname "*.png" -delete
+	rm -rf inner/

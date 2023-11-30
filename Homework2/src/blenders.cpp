@@ -76,7 +76,6 @@ void linearBlend(Mat &base, Mat &warped, Mat &dst) {
         // paint the dst_hori image
         for (int i = start; i <= end; i++) {
             // paint the dst_hori image
-            // dst_hori.at<Vec3b>(y-overlap_rect.y, i-overlap_rect.x)
             dst.at<Vec3b>(y, i) = alpha * warped.at<Vec3b>(y, i) + (1 - alpha) * base.at<Vec3b>(y, i);
             // iter the alpha
             alpha += distance_delta;
@@ -142,7 +141,7 @@ Mat computeAlphaBlending(Mat image1, Mat mask1, Mat image2, Mat mask2) {
     Mat dist2Masked;
     rawAlpha.copyTo(dist2Masked, noMask);   // where no mask is set, blend with equal values
     dist2.copyTo(dist2Masked, mask2);
-    rawAlpha.copyTo(dist2Masked, mask2&(255-mask1));    //edited
+    rawAlpha.copyTo(dist2Masked, mask2&(255-mask1));
 
     // divide by the sum of both weights to get
     // a linear combination of both image's pixel values
@@ -195,7 +194,7 @@ Mat computeAlphaBlending(Mat image1, Mat mask1, Mat image2, Mat mask2) {
 
     // merge back to 3 channel image
     Mat merged;
-    merge(channelsBlended,merged);
+    merge(channelsBlended, merged);
 
     // convert to 8UC3
     Mat merged8U;
@@ -204,12 +203,70 @@ Mat computeAlphaBlending(Mat image1, Mat mask1, Mat image2, Mat mask2) {
     return merged8U;
 }
 
+MyMultiBandBlender::MyMultiBandBlender(std::vector<Mat> images,
+                                       std::vector<Mat> masks,
+                                       bool output_inner,
+                                       int num_bands) {
+    CV_Assert(images.size() == 2 && masks.size() == 2);
+
+    // get the intersection of the two images
+    Mat mask0, mask1;
+    getMask(images[0], mask0);
+    getMask(images[1], mask1, 1, 2);
+    // get the intersection of the two masks
+    bitwise_and(mask0, mask1, mask_);
+    Rect rect;
+    getMinEnclosingRect(mask_, rect);
+
+    // copy the masks
+    masks_.resize(masks.size());
+    for (int i = 0; i < masks.size(); i++) {
+        masks[i].convertTo(masks_[i], CV_32FC1, 1./255.);
+    }
+
+    // copy the images
+    images_.resize(images.size());
+    for (int i = 0; i < images.size(); i++) {
+        images[i].convertTo(images_[i], CV_32FC3);
+    }
+
+    // create the dst image
+    dst_ = Mat::zeros(images_[0].rows, images_[0].cols, CV_32FC3);
+    images_[0].copyTo(dst_, mask0);
+    images_[1].copyTo(dst_, mask1);
+
+    // whether to output inner image
+    output_inner_ = output_inner;
+
+    // get the number of bands
+    if (num_bands == -1) {
+        // calculate the number of bands
+        float min_size = std::fmin(std::min(rect.width, rect.height), sqrt(rect.area())/24.0f);
+        num_bands_ = (int)ceil(log(min_size) / log(2)) - 1;
+    } else {
+        // use the given number of bands
+        num_bands_ = num_bands;
+    }
+
+    // prepare the image pyramids
+    prepare();
+}
+
+MyMultiBandBlender::~MyMultiBandBlender() {
+}
+
 void MyMultiBandBlender::prepare() {
     // calculate the mask pyramid
-    calGaussianPyramid(masks_[1], pyr_gaussian_);
+    pyr_gaussian_.resize(masks_.size());
+    for (int i = 0; i < masks_.size(); i++) {
+        // calculate the gaussian pyramid for each mask
+        calGaussianPyramid(masks_[i], pyr_gaussian_[i]);
+    }
+
     // calculate the laplace pyramid for each image
     pyr_laplace_.resize(images_.size());
     for (int i = 0; i < images_.size(); i++) {
+        // calculate the laplace pyramid for each image
         calLaplacePyramid(images_[i], pyr_laplace_[i]);
     }
 }
@@ -223,10 +280,12 @@ void MyMultiBandBlender::calGaussianPyramid(Mat img, std::vector<Mat> &pyr_gauss
         pyrDown(pyr_gaussian[i], pyr_gaussian[i+1]);
     }
 
-    // // output all images in the gaussian pyramid
-    // for (int i = 0; i < num_bands_ + 1; i++) {
-    //     imwrite("inner/" + std::to_string(i) + "_gaussian.png", pyr_gaussian[i]);
-    // }
+    // output all images in the gaussian pyramid
+    if (output_inner_) {
+        for (int i = 0; i < num_bands_ + 1; i++) {
+            imwrite("inner/blenders/gaussian_" + std::to_string(i) + ".png", pyr_gaussian[i]*255);
+        }
+    }
 }
 
 void MyMultiBandBlender::calLaplacePyramid(Mat img, std::vector<Mat> &pyr_laplace) {
@@ -240,13 +299,20 @@ void MyMultiBandBlender::calLaplacePyramid(Mat img, std::vector<Mat> &pyr_laplac
         pyrUp(pyr_laplace[i+1], tmp, pyr_laplace[i].size());
         subtract(pyr_laplace[i], tmp, pyr_laplace[i]);
     }
-    // // output all images in the laplace pyramid
-    // for (int i = 0; i < num_bands_ + 1; i++) {
-    //     imwrite("inner/" + std::to_string(i) + "_laplace.png", pyr_laplace[i]);
-    // }
+
+    // output all images in the laplace pyramid
+    if (output_inner_) {
+        for (int i = 0; i < num_bands_ + 1; i++) {
+            imwrite("inner/blenders/laplace_" + std::to_string(i) + ".png", pyr_laplace[i]);
+        }
+    }
 }
 
-void MyMultiBandBlender::blendPyramids(std::vector<Mat> &pyr_laplace_base, std::vector<Mat> &pyr_laplace_add, std::vector<Mat> &pyr_gaussian, std::vector<Mat> &pyr_laplace_dst) {
+void MyMultiBandBlender::blendPyramids(std::vector<Mat> &pyr_laplace_base,
+                                       std::vector<Mat> &pyr_laplace_add,
+                                       std::vector<Mat> &pyr_gaussian_base,
+                                       std::vector<Mat> &pyr_gaussian_add,
+                                       std::vector<Mat> &pyr_laplace_dst) {
     // create the laplace pyramid for the dst image
     pyr_laplace_dst.resize(num_bands_+1);
     for (int i = 0; i <= num_bands_; i++) {
@@ -259,9 +325,10 @@ void MyMultiBandBlender::blendPyramids(std::vector<Mat> &pyr_laplace_base, std::
             Point3_<float> *row_dst = pyr_laplace_dst[i].ptr<Point3_<float>>(y);
             Point3_<float> *row_base = pyr_laplace_base[i].ptr<Point3_<float>>(y);
             Point3_<float> *row_add = pyr_laplace_add[i].ptr<Point3_<float>>(y);
-            float *row_gaussian = pyr_gaussian[i].ptr<float>(y);
+            float *row_weight_base = pyr_gaussian_base[i].ptr<float>(y);
+            float *row_weight_add = pyr_gaussian_add[i].ptr<float>(y);
             for (int x = 0; x < pyr_laplace_base[i].cols; x++) {
-                float alpha = pyr_gaussian[i].at<uchar>(y, x) / 255.0f;
+                float alpha = row_weight_add[x] / (row_weight_base[x] + row_weight_add[x]);
                 row_dst[x].x += alpha * row_add[x].x + (1 - alpha) * row_base[x].x;
                 row_dst[x].y += alpha * row_add[x].y + (1 - alpha) * row_base[x].y;
                 row_dst[x].z += alpha * row_add[x].z + (1 - alpha) * row_base[x].z;
@@ -269,41 +336,11 @@ void MyMultiBandBlender::blendPyramids(std::vector<Mat> &pyr_laplace_base, std::
         }
     }
 
-}
-
-MyMultiBandBlender::MyMultiBandBlender(std::vector<Mat> images, int num_bands) {
-    CV_Assert(images.size() == 2);
-    // get the mask
-    masks_.resize(images.size());
-    getMask(images[0], masks_[0], 1, 1);
-    getMask(images[1], masks_[1], 1, 2);
-    // get the intersection of the two masks
-    bitwise_and(masks_[0], masks_[1], mask_);
-
-    // copy the images
-    images_.resize(images.size());
-    for (int i = 0; i < images.size(); i++) {
-        images[i].convertTo(images_[i], CV_32FC3);
+    if (output_inner_) {
+        for (int i = 0; i < num_bands_ + 1; i++) {
+            imwrite("inner/blenders/laplace_dst_" + std::to_string(i) + ".png", pyr_laplace_dst[i]);
+        }
     }
-
-    // create the dst image
-    dst_ = Mat::zeros(images_[0].rows, images_[0].cols, CV_32FC3);
-    images_[0].copyTo(dst_, masks_[0] - masks_[1]);
-    images_[1].copyTo(dst_, masks_[1] - masks_[0]);
-
-    if (num_bands == -1) {
-        // calculate the number of bands
-        int min_size = std::min(std::min(images[0].rows, images[0].cols), std::min(images[1].rows, images[1].cols));
-        num_bands_ = (int)(log(min_size) / log(2)) - 1;
-    } else {
-        num_bands_ = num_bands;
-    }
-
-    // prepare the image pyramids
-    prepare();
-}
-
-MyMultiBandBlender::~MyMultiBandBlender() {
 }
 
 void MyMultiBandBlender::reconstruct(std::vector<Mat> &pyr_laplace, Mat &dst) {
@@ -319,11 +356,20 @@ void MyMultiBandBlender::reconstruct(std::vector<Mat> &pyr_laplace, Mat &dst) {
 void MyMultiBandBlender::blend(Mat &dst) {
     // blend the images
     std::vector<Mat> pyr_laplace_dst;
-    blendPyramids(pyr_laplace_[0], pyr_laplace_[1], pyr_gaussian_, pyr_laplace_dst);
+    blendPyramids(pyr_laplace_[0], pyr_laplace_[1], pyr_gaussian_[0], pyr_gaussian_[1], pyr_laplace_dst);
+    
     // reconstruct the image
     Mat reconstructed;
     reconstruct(pyr_laplace_dst, reconstructed);
+    
     // copy the reconstructed image to the dst image
     reconstructed.copyTo(dst_, mask_);
+    
+    // output reconstructed
+    if (output_inner_) {
+        imwrite("inner/blenders/reconstructed.png", reconstructed);
+    }
+
+    // convert the dst image to CV_8UC3
     dst_.convertTo(dst, CV_8UC3);
 }

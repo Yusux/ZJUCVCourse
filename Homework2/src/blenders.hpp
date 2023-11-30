@@ -3,6 +3,7 @@
 
 #include "opencv2/imgproc.hpp"
 #include "opencv2/highgui.hpp"
+#include "opencv2/stitching/detail/seam_finders.hpp"
 #include "opencv2/stitching/detail/blenders.hpp"
 
 // calculate the linear blend of the base and warped image
@@ -47,9 +48,15 @@ public:
     /*
      * Constructor of the multi-band blender
      * @param images: the images to blend
-     * @param num_bands: the number of bands, -1 means automatically calculate the number of bands
+     * @param masks: the masks of the images
+     * @param num_bands: the number of bands,
+     * -1 means automatically calculate the number of bands
+     * @param output_inner: whether to output the inner image
      */
-    MyMultiBandBlender(std::vector<cv::Mat> images, int num_bands = -1);
+    MyMultiBandBlender(std::vector<cv::Mat> images,
+                       std::vector<cv::Mat> masks,
+                       bool output_inner = false,
+                       int num_bands = -1);
 
     /*
      * Destructor of the multi-band blender
@@ -63,13 +70,14 @@ public:
     void blend(cv::Mat &dst);
 
 private:
-    int num_bands_;
     cv::Mat mask_;
     cv::Mat dst_;
     std::vector<cv::Mat> images_;
     std::vector<cv::Mat> masks_;
-    std::vector<cv::Mat> pyr_gaussian_;
+    std::vector<std::vector<cv::Mat>> pyr_gaussian_;
     std::vector<std::vector<cv::Mat>> pyr_laplace_;
+    int num_bands_;
+    bool output_inner_;
 
     /*
      * Use the args get from the constructor
@@ -96,12 +104,14 @@ private:
      * Blend the laplace pyramids of the two images
      * @param pyr_laplace_base: the laplace pyramid of the base image
      * @param pyr_laplace_add: the laplace pyramid of the warped image
-     * @param pyr_gaussian: the gaussian pyramid of the mask
+     * @param pyr_gaussian_base: the gaussian pyramid of the base image
+     * @param pyr_gaussian_add: the gaussian pyramid of the warped image
      * @param pyr_laplace_dst: the laplace pyramid of the dst image
      */
     void blendPyramids(std::vector<cv::Mat> &pyr_laplace_base,
                        std::vector<cv::Mat> &pyr_laplace_add,
-                       std::vector<cv::Mat> &pyr_gaussian,
+                       std::vector<cv::Mat> &pyr_gaussian_base,
+                       std::vector<cv::Mat> &pyr_gaussian_add,
                        std::vector<cv::Mat> &pyr_laplace_dst);
 
     /*
