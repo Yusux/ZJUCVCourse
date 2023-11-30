@@ -235,8 +235,8 @@ MyMultiBandBlender::MyMultiBandBlender(std::vector<Mat> images,
     // get the number of bands
     if (num_bands == -1) {
         // calculate the number of bands
-        float min_size = std::fmin(std::min(rect.width, rect.height), sqrt(rect.area())/24.0f);
-        num_bands_ = (int)ceil(log(min_size) / log(2)) - 1;
+        float min_size = std::fmin(std::min(rect.width, rect.height), std::sqrt(rect.area())/24.0f);
+        num_bands_ = (int)std::ceil(std::log(min_size) / std::log(2)) - 1;
     } else {
         // use the given number of bands
         num_bands_ = num_bands;
