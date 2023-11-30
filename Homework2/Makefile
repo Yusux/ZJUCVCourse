@@ -1,6 +1,6 @@
 CC=g++
 INCLUDE = $(shell pkg-config --cflags opencv4)  # 获得 opencv 相关头文件路径
-LIBS = $(shell pkg-config --libs opencv4)  # 获得 opencv 扩展库
+LIBS = $(shell pkg-config --libs opencv4)		# 获得 opencv 扩展库
 CFLAGS=
 DEFS=
 SRC=$(sort $(wildcard src/*.cpp))
