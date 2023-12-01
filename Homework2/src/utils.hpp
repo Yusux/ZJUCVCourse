@@ -2,6 +2,7 @@
 #define __UTILS_HPP__
 
 #include "opencv2/imgproc.hpp"
+#include "opencv2/highgui.hpp"
 
 /*
  * Check if the input directory exists,
@@ -56,5 +57,13 @@ void getMask(cv::Mat &img, cv::Mat &mask, int dilate_size = -1, int erode_size =
  * @param rect: the minimum enclosing rectangle
  */
 void getMinEnclosingRect(cv::Mat &mask, cv::Rect &rect);
+
+/*
+ * Get the maximum inner rectangle of the mask.
+ * Refer to https://pyimagesearch.com/2018/12/17/image-stitching-with-opencv-and-python/
+ * @param mask: the mask
+ * @param rect: the maximum inner rectangle
+ */
+void getMaxInnerRect(cv::Mat &mask, cv::Rect &rect);
 
 #endif

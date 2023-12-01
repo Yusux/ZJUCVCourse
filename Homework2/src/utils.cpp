@@ -71,3 +71,36 @@ void getMinEnclosingRect(Mat &mask, Rect &rect) {
     // use boundingRect to get the min enclosing rect
     rect = boundingRect(mask);
 }
+
+void getMaxInnerRect(Mat &mask, Rect &rect) {
+    // get the min enclosing rect
+    getMinEnclosingRect(mask, rect);
+    // assert rect is larger than 2x2
+    assert(rect.width > 2 && rect.height > 2);
+    // smallen the rect by 1 pixel
+    rect.x += 1;
+    rect.y += 1;
+    rect.width -= 2;
+    rect.height -= 2;
+    // get the initial rect of the min enclosing rect
+    Mat min_rect_mask = Mat::zeros(mask.size(), CV_8UC1);
+    // draw the initial rect
+    rectangle(min_rect_mask, rect, Scalar(255), FILLED);
+    // get the sub mask
+    Mat sub_mask = min_rect_mask - mask;
+
+    // while there is still non-zero pixel in the sub mask
+    // which means there is still black pixel in the rect
+    while (countNonZero(sub_mask) > 0) {
+        // erode the min rect mask
+        erode(min_rect_mask, min_rect_mask, Mat());
+        // get the sub mask
+        sub_mask = min_rect_mask - mask;
+    }
+
+    // Assert the min rect mask is not empty
+    assert(countNonZero(min_rect_mask) > 0);
+
+    // get the max inner rect
+    getMinEnclosingRect(min_rect_mask, rect);
+}

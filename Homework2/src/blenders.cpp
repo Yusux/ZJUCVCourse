@@ -1,6 +1,7 @@
 #include "utils.hpp"
 #include "blenders.hpp"
 #include <iostream>
+#include <omp.h>
 
 using namespace cv;
 
@@ -36,6 +37,7 @@ void linearBlend(Mat &base, Mat &warped, Mat &dst) {
     // use the calculated alpha in [0, 1] to represent the radio
     // of the distance of the boundary to the bottom_left of the base mask
     // to paint the dst image
+#pragma omp parallel for
     for (int y = overlap_rect.y; y < overlap_rect.y + overlap_rect.height; y++) {
         // find the start and end of the overlap mask
         int start = -1;
@@ -219,12 +221,14 @@ MyMultiBandBlender::MyMultiBandBlender(std::vector<Mat> images,
 
     // copy the masks
     masks_.resize(masks.size());
+#pragma omp parallel for
     for (int i = 0; i < masks.size(); i++) {
         masks[i].convertTo(masks_[i], CV_32FC1, 1./255.);
     }
 
     // copy the images
     images_.resize(images.size());
+#pragma omp parallel for
     for (int i = 0; i < images.size(); i++) {
         images[i].convertTo(images_[i], CV_32FC3);
     }
@@ -252,6 +256,7 @@ MyMultiBandBlender::~MyMultiBandBlender() {
 void MyMultiBandBlender::prepare() {
     // calculate the mask pyramid
     pyr_gaussian_.resize(masks_.size());
+#pragma omp parallel for
     for (int i = 0; i < masks_.size(); i++) {
         // calculate the gaussian pyramid for each mask
         calGaussianPyramid(masks_[i], pyr_gaussian_[i]);
@@ -259,6 +264,7 @@ void MyMultiBandBlender::prepare() {
 
     // calculate the laplace pyramid for each image
     pyr_laplace_.resize(images_.size());
+#pragma omp parallel for
     for (int i = 0; i < images_.size(); i++) {
         // calculate the laplace pyramid for each image
         calLaplacePyramid(images_[i], pyr_laplace_[i]);
@@ -309,12 +315,14 @@ void MyMultiBandBlender::blendPyramids(std::vector<Mat> &pyr_laplace_base,
                                        std::vector<Mat> &pyr_laplace_dst) {
     // create the laplace pyramid for the dst image
     pyr_laplace_dst.resize(num_bands_+1);
+#pragma omp parallel for
     for (int i = 0; i <= num_bands_; i++) {
         pyr_laplace_dst[i] = Mat::zeros(pyr_laplace_base[i].size(), pyr_laplace_base[i].type());
     }
 
     for (int i = 0; i <= num_bands_; i++) {
         // blend the laplace pyramid
+#pragma omp parallel for
         for (int y = 0; y < pyr_laplace_base[i].rows; y++) {
             Point3_<float> *row_dst = pyr_laplace_dst[i].ptr<Point3_<float>>(y);
             Point3_<float> *row_base = pyr_laplace_base[i].ptr<Point3_<float>>(y);

@@ -55,6 +55,7 @@ private:
     bool output_inner_;
     int blend_type_;
     cv::Ptr<cv::SIFT> sift_;
+    cv::Ptr<cv::DescriptorMatcher> matcher_;
     cv::Ptr<cv::detail::SeamFinder> seam_finder_;
     cv::Mat dst_;
     std::vector<cv::String> filenames_;
