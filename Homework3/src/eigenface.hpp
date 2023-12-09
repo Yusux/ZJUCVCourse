@@ -9,7 +9,7 @@
 
 class EigenFace {
 public:
-    EigenFace(bool is_train, std::vector<cv::String> paths, double threshold = 0.99);
+    EigenFace(bool is_train, std::vector<cv::String> paths, bool inner = false, double threshold = 0.99);
     EigenFace(const EigenFace& eigenface);
     ~EigenFace();
 
@@ -20,11 +20,14 @@ public:
     cv::Mat reconstruct(cv::String face_image_path, cv::String eye_position_path = "");
 
 private:
+    bool inner_;
+    cv::String config_path_;
     cv::Mat convert_mat_;
     cv::Mat mean_face_;
     std::vector<std::pair<cv::Mat, cv::String> > eigen_faces_;
+    std::vector<cv::Mat> original_face_images_;
     
-    void getEigenFace_(std::vector<cv::String> &paths,
+    void getFaces_(std::vector<cv::String> &paths,
                        std::vector<std::pair<Face, cv::String> > &faces);
     void train_(std::vector<std::pair<Face, cv::String> > &faces, double threshold);
 };

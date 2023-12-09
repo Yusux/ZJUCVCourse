@@ -101,13 +101,13 @@ void Face::readEyePosition(String eye_position_path) {
     Json::Value eye_position;
     std::ifstream fin(eye_position_path);
     if (!fin.is_open()) {
-        throw Exception(-1, "Cannot open eye position file", "Face::Face", __FILE__, __LINE__);
+        throw Exception(-215, "Cannot open eye position file", "Face::Face", __FILE__, __LINE__);
     }
     fin >> eye_position;
 
     // check if the json file is valid
     if (!eye_position.isMember("centre_of_left_eye") || !eye_position.isMember("centre_of_right_eye")) {
-        throw Exception(-1, "Invalid eye position file", "Face::Face", __FILE__, __LINE__);
+        throw Exception(-215, "Invalid eye position file", "Face::Face", __FILE__, __LINE__);
     }
 
     // assign eye positions
@@ -192,11 +192,11 @@ void Face::viewFaceImage() {
 }
 
 Mat Face::getFaceImage() const {
-    return face_image_;
+    return face_image_.clone();
 }
 
 Mat Face::getViewedFaceImage() const {
-    return viewed_face_image_;
+    return viewed_face_image_.clone();
 }
 
 Point2i Face::getLeftEye() const {
