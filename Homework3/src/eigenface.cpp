@@ -226,15 +226,15 @@ void EigenFace::train_(std::vector<std::pair<Face, String> > &faces, double thre
     }
 }
 
-Mat EigenFace::getConvertMat() {
-    return convert_mat_;
+Mat EigenFace::getConvertMat() const {
+    return convert_mat_.clone();
 }
 
-Mat EigenFace::getMeanFace() {
-    return mean_face_;
+Mat EigenFace::getMeanFace() const {
+    return mean_face_.clone();
 }
 
-std::vector<std::pair<Mat, String> > EigenFace::getFaceImages() {
+std::vector<std::pair<Mat, String> > EigenFace::getFaceImages() const {
     return eigen_faces_;
 }
 

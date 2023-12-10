@@ -36,6 +36,7 @@ int main(int argc, char** argv) {
     String input_path = parser.get<String>("@input");
     String output_filename = parser.get<String>("@output");
 
+    // print the parsed arguments
     std::cout << "# Arguments #" << std::endl;
     std::cout << std::setw(20) << std::left << "config_path: "       << std::left << config_path << std::endl;
     std::cout << std::setw(20) << std::left << "output_inner: "      << std::left << output_inner << std::endl;
@@ -55,6 +56,7 @@ int main(int argc, char** argv) {
     clock_t start, end;
     start = clock();
     try {
+        // train or recognize or reconstruct
         if (work_type == "train") {
             EigenFace eigenface(true, {config_path, input_path, eye_location_path}, output_inner, energy_ratio);
         } else if (work_type == "recognize") {
