@@ -20,8 +20,8 @@ private:
     std::vector<std::pair<cv::Mat, cv::String> > eigen_faces_;
     
     void getFaces_(std::vector<cv::String> &paths,
-                       std::vector<std::pair<Face, cv::String> > &faces,
-                       int need_odd);
+                   std::vector<std::pair<Face, cv::String> > &faces,
+                   int need_odd);
     void train_(std::vector<std::pair<Face, cv::String> > &faces, int pca_dim = 10);
 };
 

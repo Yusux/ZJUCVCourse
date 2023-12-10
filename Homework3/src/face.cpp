@@ -53,7 +53,7 @@ Rect Face::detectFace() {
 
     Mat tmp = face_image_.clone();
     for (int i = 0; i < faces.size(); i++) {
-        rectangle(tmp, faces[i], Scalar(255, 255, 255));
+        rectangle(tmp, faces[i], Scalar(255), 1);
     }
     imwrite("face.jpg", tmp);
 
@@ -81,7 +81,7 @@ void Face::detectEyes() {
 
     Mat tmp = face_image_(face).clone();
     for (int i = 0; i < eyes.size(); i++) {
-        rectangle(tmp, eyes[i], Scalar(255, 255, 255));
+        rectangle(tmp, eyes[i], Scalar(255), 1);
     }
     imwrite("eyes.jpg", tmp);
 

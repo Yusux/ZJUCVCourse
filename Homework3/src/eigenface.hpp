@@ -80,7 +80,7 @@ private:
      * @param faces: face images.
      */
     void getFaces_(std::vector<cv::String> &paths,
-                       std::vector<std::pair<Face, cv::String> > &faces);
+                   std::vector<std::pair<Face, cv::String> > &faces);
 
     /*
      * Train the model.
