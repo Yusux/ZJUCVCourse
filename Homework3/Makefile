@@ -5,7 +5,7 @@ CFLAGS=-O3
 DEFS=
 SRC=$(sort $(wildcard src/*.cpp))
 OBJ=$(SRC:.cpp=.o)
-TARGET=eifenface.out
+TARGET=eigenface.out
 TESTSRC=$(sort $(wildcard src/test/*.cpp))
 TESTOBJ=$(TESTSRC:.cpp=.o)
 TESTTARGET=test.out
