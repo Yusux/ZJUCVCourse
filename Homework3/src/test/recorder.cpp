@@ -6,8 +6,8 @@
 using namespace cv;
 
 int main(int argc, char** argv) {
-    String face_images_path = "att/att-face";
-    String eye_locations_path = "att/att-eye-location";
+    String face_images_path = "images/att/att-face";
+    String eye_locations_path = "images/att/att-eye-location";
     try {
         std::ofstream fout("result.csv", std::ios::out);
         fout << "pca_dim,identity_rate" << std::endl;

@@ -32,9 +32,7 @@ cleanbin:
 	rm -rf $(OBJ) $(TARGET) $(TESTOBJ) $(TESTTARGET)
 
 cleanimg:
-	find . -type f -name "*.jpg" -not -path "./att/*" -delete
-	find . -type f -name "*.png" -not -path "./att/*" -delete
-	rm -rf inner/
+	rm -rf inner/ *.jpg *.png *.bmp *.svg
 
 cleancfg:
 	find . -type f -name "*.yml" -delete

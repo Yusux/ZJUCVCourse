@@ -9,7 +9,7 @@ static const int FACE_EYE_DISTANCE = 36;
 static const Point2f LEFT_EYE_POSITION = Point2f(28, 45);
 static const Size FACE_IMAGE_SIZE = Size(90, 110);
 
-CascadeClassifier Face::face_cascade_ = CascadeClassifier("haarcascade/haarcascade_frontalface_alt.xml");
+CascadeClassifier Face::face_cascade_ = CascadeClassifier("haarcascade/haarcascade_frontalface_default.xml");
 CascadeClassifier Face::eyes_cascade_ = CascadeClassifier("haarcascade/haarcascade_eye_tree_eyeglasses.xml");
 
 Face::Face(String face_image_path, String eye_position_path) {
@@ -49,7 +49,13 @@ Face::~Face() {
 Rect Face::detectFace() {
     // detect face
     std::vector<Rect> faces;
-    face_cascade_.detectMultiScale(face_image_, faces, 1.2, 3);
+    face_cascade_.detectMultiScale(face_image_, faces, 1.3, 5, CASCADE_DO_CANNY_PRUNING, face_image_.size()/4);
+
+    Mat tmp = face_image_.clone();
+    for (int i = 0; i < faces.size(); i++) {
+        rectangle(tmp, faces[i], Scalar(255, 255, 255));
+    }
+    imwrite("face.jpg", tmp);
 
     // if no face detected, throw an exception
     if (faces.size() == 0) {
@@ -69,12 +75,15 @@ void Face::detectEyes() {
     // detect face
     Rect face = detectFace();
 
-    Mat tmp = face_image_(face);
-    imwrite("face.jpg", tmp);
-
     // detect eyes
     std::vector<Rect> eyes;
-    eyes_cascade_.detectMultiScale(face_image_(face), eyes, 1.2, 3);
+    eyes_cascade_.detectMultiScale(face_image_(face), eyes, 1.2, 3, CASCADE_DO_CANNY_PRUNING, face_image_(face).size()/8);
+
+    Mat tmp = face_image_(face).clone();
+    for (int i = 0; i < eyes.size(); i++) {
+        rectangle(tmp, eyes[i], Scalar(255, 255, 255));
+    }
+    imwrite("eyes.jpg", tmp);
 
     // if no eye detected, throw an exception
     if (eyes.size() < 2) {

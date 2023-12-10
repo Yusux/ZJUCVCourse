@@ -6,14 +6,14 @@
 
 using namespace cv;
 
-const String parser_string = "{help h usage     |                   | print this message                                }"
-                             "{config_path c    | eigenface.yml     | config file path                                  }"
-                             "{inner            |                   | output inner image                                }"
-                             "{work_type t      | train             | work type, can be train, recognize or reconstruct }"
-                             "{energy_ratio r   | 0.99              | energy ratio for eigenfaces                       }"
-                             "{eye_loctation e  |                   | eye location json file or directory path          }"
-                             "{@input           | att/att-face      | input images directory or config file path        }"
-                             "{@output          | reconstructed.png | output image name                                 }"
+const String parser_string = "{help h usage     |                       | print this message                                }"
+                             "{config_path c    | eigenface.yml         | config file path                                  }"
+                             "{inner            |                       | output inner image                                }"
+                             "{work_type t      | train                 | work type, can be train, recognize or reconstruct }"
+                             "{energy_ratio r   | 0.99                  | energy ratio for eigenfaces                       }"
+                             "{eye_loctation e  |                       | eye location json file or directory path          }"
+                             "{@input           | images/att/att-face   | input images directory or config file path        }"
+                             "{@output          | reconstructed.png     | output image name                                 }"
                              ;
 
 int main(int argc, char** argv) {
