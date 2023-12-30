@@ -12,3 +12,5 @@ Images/campus/
 Homework2/pictures/
 Homework3/images/
 *.yml
+**/__pycache__/
+**/model.pth
