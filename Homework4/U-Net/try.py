@@ -18,6 +18,7 @@ def plot_img_and_mask(img, mask, filename):
     plt.close()
 
 if __name__ == "__main__":
+    # Parse arguments
     parser = argparse.ArgumentParser(description='Predict masks from input images')
     parser.add_argument('--model', '-m', default='model.pth',
                         help='Specify the file in which the model is stored')
