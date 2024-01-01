@@ -4,7 +4,6 @@ import torchvision
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
-import numpy as np
 
 # define Hyper-parameter
 train_batch_size = 128
@@ -16,15 +15,41 @@ learning_rate = 5e-4
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # transform image to tensor
-transform = transforms.Compose([transforms.Resize((32,32)), transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
+transform = transforms.Compose([
+   transforms.Resize((32,32)),
+   transforms.ToTensor(),
+   transforms.Normalize((0.1307,), (0.3081,))
+])
 # mean and std come from https://www.kaggle.com/code/berrywell/calculating-mnist-inverted-mnist-mean-std/notebook
 
 # load dataset
-train_set = torchvision.datasets.MNIST(root="./dataset", train=True, transform=transform, target_transform=None, download=False)
-train_loader = DataLoader(train_set, batch_size=train_batch_size, shuffle=True)
+# creates dataset from train-images-idx3-ubyte
+train_set = torchvision.datasets.MNIST(
+    root="./dataset",
+    train=True,
+    transform=transform,
+    target_transform=None,
+    download=True
+)
+train_loader = DataLoader(
+    train_set,
+    batch_size=train_batch_size,
+    shuffle=True
+)
 
-test_set = torchvision.datasets.MNIST(root="./dataset", train=False, transform=transform, target_transform=None, download=False)
-test_loader = DataLoader(test_set, batch_size=test_batch_size, shuffle=False)
+# creates dataset from t10k-images-idx3-ubyte
+test_set = torchvision.datasets.MNIST(
+    root="./dataset",
+    train=False,
+    transform=transform,
+    target_transform=None,
+    download=True
+)
+test_loader = DataLoader(
+   test_set,
+   batch_size=test_batch_size,
+   shuffle=False
+)
 
 # define model
 class LeNetModel(nn.Module):
@@ -58,13 +83,18 @@ class LeNetModel(nn.Module):
         x = self.fc_3(x)
         return x
 
+# create model
 model = LeNetModel()
 model = model.to(device)
 
 # use CrossEntropyLoss as Loss function
 criterion = nn.CrossEntropyLoss()
+
 # optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9)
+# use Adam as optimizer
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+
+# use tensorboard
 writer = SummaryWriter()
 
 for epoch in range(num_epochs):
@@ -78,14 +108,14 @@ for epoch in range(num_epochs):
         # forward
         output = model(batch)
 
-        # clear grid
+        # clear grad
         optimizer.zero_grad()
         # get loss
         loss = criterion(output, label)
         loss_total += loss
         writer.add_scalar("Loss/train", loss, epoch*len(train_loader)+i)
 
-        # backward, calculate the grid
+        # backward, calculate the grad
         loss.backward()
         # update model
         optimizer.step()
@@ -100,7 +130,7 @@ for epoch in range(num_epochs):
 
         if (testid == 0):
           x = test_data
-          for name,module in model._modules.items():
+          for name, module in model._modules.items():
             if name == "fc_1":
                 x = x.view(-1, 400)
             x = module(x)

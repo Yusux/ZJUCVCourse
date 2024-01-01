@@ -14,3 +14,4 @@ Homework3/images/
 *.yml
 **/__pycache__/
 **/model.pth
+Homework4/LeNet-5/runs/
