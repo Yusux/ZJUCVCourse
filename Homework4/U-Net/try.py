@@ -22,9 +22,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Predict masks from input images')
     parser.add_argument('--model', '-m', default='model.pth',
                         help='Specify the file in which the model is stored')
-    parser.add_argument('--input', '-i', default='infer.jpg',
+    parser.add_argument('--input', '-i', default='car.jpg',
                         help='Specify the input image')
-    parser.add_argument('--output', '-o', default='output.jpg',
+    parser.add_argument('--output', '-o', default='infer.jpg',
                         help='Specify the output image')
     parser.add_argument('--threshold', '-t', default=0.9, type=float,
                         help='Specify the segmentation threshold')
