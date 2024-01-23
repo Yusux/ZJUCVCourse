@@ -15,3 +15,5 @@ Homework3/images/
 **/__pycache__/
 **/model.pth
 Homework4/LeNet-5/runs/
+Homework5/runs/
+Homework5/*.png
