@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
 import argparse
-from PIL import Image
 import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
